@@ -12,6 +12,9 @@ export function initTelemetry() {
 
   const exporter = new OTLPTraceExporter({
     url: "http://localhost:4318/v1/traces",
+    headers: {
+      authorization: "527e9c96-9efc-4ba3-8e1f-463f0c45abbc",
+    },
   });
 
   const provider = new WebTracerProvider({

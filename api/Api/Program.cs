@@ -17,7 +17,7 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
-        .AddNpgsqlInstrumentation()
+        .AddNpgsql()
         .AddSource("RabbitMQ.Client.*")
         .AddOtlpExporter(o => o.Endpoint = new Uri(otelEndpoint)))
     .WithMetrics(m => m

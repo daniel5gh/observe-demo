@@ -34,7 +34,9 @@ services:
       - "4318:4318"   # OTLP HTTP (browser)
       - "8080:8080"   # HyperDX UI
     volumes:
+      - clickstack-db:/data/db
       - clickstack-data:/var/lib/clickhouse
+      - clickstack-logs:/var/log/clickhouse-server
 
   api:
     build: ./api
@@ -47,6 +49,7 @@ services:
       RabbitMQ__Password: demo
       Enrichment__BaseUrl: "http://worker:8000"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://clickstack:4317"
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=527e9c96-9efc-4ba3-8e1f-463f0c45abbc"
       OTEL_SERVICE_NAME: order-api
     depends_on:
       postgres:
@@ -65,6 +68,7 @@ services:
       RABBITMQ_USERNAME: demo
       RABBITMQ_PASSWORD: demo
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://clickstack:4317"
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=527e9c96-9efc-4ba3-8e1f-463f0c45abbc"
       OTEL_SERVICE_NAME: order-worker
     depends_on:
       rabbitmq:
@@ -80,4 +84,6 @@ services:
       - api
 
 volumes:
+  clickstack-db:
   clickstack-data:
+  clickstack-logs:
