@@ -8,3 +8,9 @@ __pycache__/
 bin/
 obj/
 .venv/
+
+# Gas Town directories
+.beads/
+.runtime/
+.claude/
+.logs/
