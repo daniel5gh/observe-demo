@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: demo
+      RABBITMQ_DEFAULT_PASS: demo
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickstack:
+    image: docker.io/clickhouse/clickstack:latest
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP (browser)
+      - "8080:8080"   # HyperDX UI
+    volumes:
+      - clickstack-data:/var/lib/clickhouse
+
+  api:
+    build: ./api
+    ports:
+      - "5050:8080"
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Database=orders;Username=demo;Password=demo"
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Username: demo
+      RabbitMQ__Password: demo
+      Enrichment__BaseUrl: "http://worker:8000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://clickstack:4317"
+      OTEL_SERVICE_NAME: order-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      clickstack:
+        condition: service_started
+
+  worker:
+    build: ./worker
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: demo
+      RABBITMQ_PASSWORD: demo
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://clickstack:4317"
+      OTEL_SERVICE_NAME: order-worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      clickstack:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  clickstack-data:
