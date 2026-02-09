@@ -2,12 +2,22 @@ import os
 import json
 import asyncio
 import logging
+import random
+import time
 
 import aio_pika
-from opentelemetry import trace
+from opentelemetry import trace, metrics
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+# Create a histogram to track processing time
+processing_time_histogram = meter.create_histogram(
+    name="order.processing.duration",
+    description="Time taken to process an order message",
+    unit="s"
+)
 
 
 async def start_consumer():
@@ -15,6 +25,12 @@ async def start_consumer():
     username = os.getenv("RABBITMQ_USERNAME", "demo")
     password = os.getenv("RABBITMQ_PASSWORD", "demo")
     url = f"amqp://{username}:{password}@{host}/"
+
+    # Configurable random wait times (in seconds)
+    min_wait = float(os.getenv("WORKER_MIN_WAIT", "0.1"))
+    max_wait = float(os.getenv("WORKER_MAX_WAIT", "2.0"))
+
+    logger.info(f"Worker configured with random wait between {min_wait}s and {max_wait}s")
 
     connection = None
     for attempt in range(1, 21):
@@ -37,24 +53,51 @@ async def start_consumer():
 
     async def on_message(message: aio_pika.IncomingMessage):
         async with message.process():
+            # Start timing for metrics
+            start_time = time.time()
+            status = "success"
+            product = ""
+
             with tracer.start_as_current_span("process_order") as span:
-                body = json.loads(message.body.decode())
-                span.set_attribute("order.id", str(body.get("Id", "")))
-                span.set_attribute("order.product", body.get("Product", ""))
-                logger.info("Processing order: %s", body)
+                try:
+                    body = json.loads(message.body.decode())
+                    order_id = str(body.get("Id", ""))
+                    product = body.get("Product", "")
 
-                # Handle error/error2 triggers sent by the API
-                if str(body.get("Product", "")).lower() == "worker error":
-                    # Log when error2 is detected for traceability
-                    if body.get("error2"):
-                        logger.warning("Detected 'worker error' trigger in message for order %s", body.get("Id"))
-                    # simulate error handling similar to existing 'error' behavior
-                    # logger.error("Simulated processing error for order %s", body.get("Id"))
-                    raise Exception("Simulated processing error for order %s" % body.get("Id"))
+                    span.set_attribute("order.id", order_id)
+                    span.set_attribute("order.product", product)
+                    logger.info("Processing order: %s", body)
 
-                # Simulate processing delay
-                await asyncio.sleep(0.5)
-                logger.info("Order processed: %s", body.get("Id"))
+                    # Handle error/error2 triggers sent by the API
+                    if str(product).lower() == "worker error":
+                        # Log when error2 is detected for traceability
+                        if body.get("error2"):
+                            logger.warning("Detected 'worker error' trigger in message for order %s", order_id)
+                        # simulate error handling similar to existing 'error' behavior
+                        # logger.error("Simulated processing error for order %s", order_id)
+                        status = "error"
+                        raise Exception("Simulated processing error for order %s" % order_id)
+
+                    # Simulate processing with random delay
+                    processing_delay = random.uniform(min_wait, max_wait)
+                    span.set_attribute("processing.delay_seconds", processing_delay)
+                    logger.info(f"Simulating {processing_delay:.2f}s processing time for order {order_id}")
+                    await asyncio.sleep(processing_delay)
+
+                    logger.info("Order processed: %s", order_id)
+                except Exception as e:
+                    status = "error"
+                    raise
+                finally:
+                    # Record processing time metric
+                    duration = time.time() - start_time
+                    processing_time_histogram.record(
+                        duration,
+                        attributes={
+                            "order.product": product,
+                            "status": status
+                        }
+                    )
 
     await queue.consume(on_message)
     logger.info("Consumer started, waiting for messages...")

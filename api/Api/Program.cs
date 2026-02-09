@@ -23,6 +23,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m => m
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
+        .AddMeter("Api.Orders")
         .AddOtlpExporter(o => o.Endpoint = new Uri(otelEndpoint)));
 
 builder.Logging.AddOpenTelemetry(o =>
@@ -33,6 +34,7 @@ builder.Logging.AddOpenTelemetry(o =>
 
 builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<MessagePublisher>();
+builder.Services.AddSingleton<OrderMetrics>();
 builder.Services.AddHttpClient<EnrichmentClient>(client =>
 {
     var baseUrl = builder.Configuration["Enrichment:BaseUrl"] ?? "http://localhost:8000";

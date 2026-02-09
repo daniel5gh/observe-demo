@@ -29,6 +29,7 @@ Wait for all services to become healthy (first build takes a few minutes).
 | HyperDX             | http://localhost:8080         | Traces, logs, metrics |
 | RabbitMQ Management | http://localhost:15672        | demo / demo         |
 | Python Worker API   | http://localhost:8000/health  | Health check        |
+| Locust Load Gen     | http://localhost:8089         | Load testing UI (optional) |
 
 ## Usage
 
@@ -41,14 +42,77 @@ Wait for all services to become healthy (first build takes a few minutes).
 
 Submit an order with product **"error"** to trigger an error-annotated trace. The .NET API will throw an exception, and HyperDX will show the error span with status code and exception details.
 
+Submit an order with product **"worker error"** to trigger an error in the worker processing, showing error propagation through the queue.
+
+## Load Testing
+
+Start the Locust load generator to simulate traffic and observe system behavior under load:
+
+```bash
+# Start with web UI (configure load in browser)
+docker compose --profile loadgen up locust
+
+# Or run headless with specific load
+export LOCUST_USERS=50
+export LOCUST_SPAWN_RATE=5
+export LOCUST_HEADLESS=true
+docker compose --profile loadgen up locust
+```
+
+Access the Locust web UI at http://localhost:8089 to control the load test and view statistics.
+
+See `loadgen/README.md` for detailed configuration options and examples.
+
+### Observing Load Test Results
+
+While the load test runs:
+1. Open HyperDX at http://localhost:8080
+2. View request latency distributions across services
+3. Monitor custom metrics:
+   - `orders.created` - Total orders created (display as gauge or rate)
+   - `orders.errors` - Order creation errors by type
+   - `order.processing.duration` - Worker processing times
+4. Analyze trace waterfalls to identify bottlenecks
+
+#### Key Metrics
+
+The system exports several custom metrics for monitoring:
+
+- **`orders.created`** (Counter) - Total orders created, with attributes:
+  - `product` - Product name
+  - `quantity` - Order quantity
+  - Can be displayed as a gauge showing cumulative orders or as a rate (orders/min)
+
+- **`orders.errors`** (Counter) - Order creation errors, with attributes:
+  - `product` - Product that caused the error
+  - `error.type` - Type of error (validation_error, simulated_error)
+
+- **`order.processing.duration`** (Histogram) - Worker processing time in seconds, with attributes:
+  - `order.product` - Product name
+  - `status` - success or error
+
+### Configuring Worker Processing Time
+
+The worker simulates realistic processing with random delays. Configure via environment variables:
+
+```bash
+# Set minimum and maximum processing time (seconds)
+export WORKER_MIN_WAIT=0.5
+export WORKER_MAX_WAIT=3.0
+docker compose up worker
+```
+
+This allows you to simulate different processing patterns and observe their impact on system performance.
+
 ## Services
 
 - **frontend** — Vite + React + TypeScript with OTel browser SDK
 - **api** — .NET 8 Minimal API with Dapper, Npgsql, RabbitMQ.Client 7.x
-- **worker** — Python FastAPI (/enrich endpoint) + aio-pika RabbitMQ consumer
+- **worker** — Python FastAPI (/enrich endpoint) + aio-pika RabbitMQ consumer with processing time metrics
 - **postgres** — Order storage
 - **rabbitmq** — Message broker for order events
 - **clickstack** — All-in-one observability backend (OTel Collector + ClickHouse + HyperDX)
+- **locust** (optional) — Load testing tool to simulate user traffic and observe system behavior under load
 
 ## Teardown
 

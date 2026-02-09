@@ -14,13 +14,15 @@ public static class OrderEndpoints
             CreateOrderRequest request,
             OrderRepository repo,
             EnrichmentClient enrichment,
-            MessagePublisher publisher) =>
+            MessagePublisher publisher,
+            OrderMetrics metrics) =>
         {
             Activity.Current?.SetTag("order.product", request.Product);
             Activity.Current?.SetTag("order.quantity", request.Quantity);
 
             if (string.IsNullOrWhiteSpace(request.CustomerName) || string.IsNullOrWhiteSpace(request.Product) || request.Quantity <= 0)
             {
+                metrics.RecordOrderError(request.Product, "validation_error");
                 return Results.BadRequest(new { error = "CustomerName, Product, and Quantity (> 0) are required." });
             }
 
@@ -28,6 +30,7 @@ public static class OrderEndpoints
             {
                 Activity.Current?.SetStatus(ActivityStatusCode.Error, "Simulated error for product 'error'");
                 Activity.Current?.AddEvent(new ActivityEvent("error.simulated"));
+                metrics.RecordOrderError(request.Product, "simulated_error");
                 throw new InvalidOperationException("Simulated error: product 'error' triggers failure");
             }
 
@@ -36,6 +39,9 @@ public static class OrderEndpoints
             var order = await repo.CreateAsync(request, price, rawJson);
 
             await publisher.PublishOrderCreatedAsync(new { order.Id, order.Product, order.Quantity, order.Price });
+
+            // Record successful order creation metric
+            metrics.RecordOrderCreated(order.Product, order.Quantity);
 
             return Results.Created($"/orders/{order.Id}", order);
         });

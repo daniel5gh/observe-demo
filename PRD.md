@@ -49,7 +49,9 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
 - **Tech:** .NET 8, ASP.NET Core Web API
 - **Observability:**
   - Distributed tracing (HTTP in/out, DB queries, RabbitMQ publish)
-  - Metrics (request duration, order counts)
+  - Metrics:
+    - Auto-instrumented: HTTP request duration, active requests
+    - Custom counters: `orders.created` (by product), `orders.errors` (by error type)
   - Structured logging correlated with trace IDs
 - **Endpoints:**
   - `POST /orders` — create an order
@@ -62,9 +64,13 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
 - **Observability:**
   - Distributed tracing (HTTP in, RabbitMQ consume, DB reads if needed)
   - Structured logging correlated with trace IDs
+  - Custom metrics for processing time (histogram/gauge)
 - **Endpoints:**
   - `POST /enrich` — enrich/validate an order (called by .NET)
-- **Worker:** Consumes `order.created` messages from RabbitMQ, performs background processing (e.g., send notification, update status)
+- **Worker:**
+  - Consumes `order.created` messages from RabbitMQ
+  - Performs background processing with random simulated wait times (configurable)
+  - Records processing duration as OTEL metric for analysis in HyperDX
 
 ### 4. PostgreSQL
 - **Purpose:** Persistent storage for orders
@@ -84,6 +90,19 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
   - ClickHouse for telemetry storage
   - HyperDX dashboard for exploring traces, metrics, and logs
 - **Config:** All application services point their OTLP exporter to `clickstack:4317`
+
+### 7. Locust Load Generator (Optional)
+- **Purpose:** Generates configurable load to demonstrate observability under various traffic patterns
+- **Tech:** Locust (Python-based load testing framework)
+- **Observability:** Load metrics help visualize system behavior under stress, enabling analysis of latency distribution, queue depth, and processing times
+- **Config:**
+  - Optional service (start with `docker compose up locust`)
+  - Configurable via environment variables:
+    - `LOCUST_USERS` — number of concurrent users
+    - `LOCUST_SPAWN_RATE` — users spawned per second
+    - `LOCUST_HOST` — target host (defaults to .NET API)
+  - Web UI available on port **8089** for manual control
+- **Usage:** Useful for demonstrating how observability helps identify bottlenecks and performance issues under load
 
 ## Demo Domain: Order Processing
 
@@ -108,6 +127,10 @@ A simple e-commerce-style order flow that touches every component:
 | **Error propagation** | Intentional error path (e.g., invalid order) shows error spans across services |
 | **Latency metrics** | Request duration histograms per endpoint |
 | **Structured logging** | Logs correlated with trace/span IDs for cross-referencing |
+| **Processing time metrics** | Worker processing duration tracked as custom OTEL metrics, graphable in HyperDX |
+| **Order creation counter** | Custom counter `orders.created` tracks total orders by product, displayable as gauge in HyperDX |
+| **Error tracking counter** | Custom counter `orders.errors` tracks failures by error type for monitoring error rates |
+| **Load testing with observability** | Use Locust to generate traffic and observe latency distribution, queue depth, and processing times under various load patterns |
 
 ## Technical Decisions
 
@@ -134,6 +157,9 @@ observe-demo/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── app/
+├── loadgen/               # Locust load generator
+│   ├── Dockerfile
+│   └── locustfile.py
 ├── PRD.md
 └── README.md
 ```
