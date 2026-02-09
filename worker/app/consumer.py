@@ -42,6 +42,16 @@ async def start_consumer():
                 span.set_attribute("order.id", str(body.get("Id", "")))
                 span.set_attribute("order.product", body.get("Product", ""))
                 logger.info("Processing order: %s", body)
+
+                # Handle error/error2 triggers sent by the API
+                if str(body.get("Product", "")).lower() == "worker error":
+                    # Log when error2 is detected for traceability
+                    if body.get("error2"):
+                        logger.warning("Detected 'worker error' trigger in message for order %s", body.get("Id"))
+                    # simulate error handling similar to existing 'error' behavior
+                    # logger.error("Simulated processing error for order %s", body.get("Id"))
+                    raise Exception("Simulated processing error for order %s" % body.get("Id"))
+
                 # Simulate processing delay
                 await asyncio.sleep(0.5)
                 logger.info("Order processed: %s", body.get("Id"))
