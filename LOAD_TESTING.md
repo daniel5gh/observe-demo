@@ -76,13 +76,33 @@ docker compose up -d worker
 
 ## Load Test Scenarios
 
-The load generator simulates three types of operations with weighted distribution:
+The load generator simulates three types of operations with weighted distribution and automatic error injection:
 
 | Operation | Weight | Endpoint | Description |
 |-----------|--------|----------|-------------|
-| Create Order | 10 | `POST /orders` | Most common - creates new orders |
+| Create Order | 10 | `POST /orders` | Most common - creates new orders. **Includes automatic error injection:** 90% normal products, 5% "error" (API error), 5% "worker error" (async error) |
 | List Orders | 3 | `GET /orders` | Moderate - fetches all orders |
 | Get Order Detail | 1 | `GET /orders/{id}` | Rare - fetches specific order |
+
+### Error Injection for Observability
+
+The load generator automatically triggers errors to demonstrate error tracking:
+
+- **API Errors (5%)** - Product "error" triggers an exception in the .NET API
+  - Demonstrates error spans in distributed traces
+  - Increments `orders.errors{error.type="simulated_error"}` counter
+  - Shows error propagation and exception handling
+
+- **Worker Errors (5%)** - Product "worker error" triggers an exception in the Python worker
+  - Order creation succeeds, but background processing fails
+  - Demonstrates async error tracking across message queues
+  - Shows error correlation between API and worker services
+
+This ~10% error rate helps you observe:
+- Error rates in dashboards (`orders.errors` metric)
+- Error traces in HyperDX (search for `status:error`)
+- Impact of errors on system performance
+- Error recovery and resilience patterns
 
 ## Observability Metrics
 
@@ -234,17 +254,32 @@ docker compose --profile loadgen up locust
 ### Workflow 3: Error Impact Analysis
 
 ```bash
-# Configure load generator to create some "worker error" orders
-# (You'll need to modify locustfile.py to include this product)
-
+# The load generator automatically injects errors (~10% of orders)
 # Run load test
 export LOCUST_USERS=50
 docker compose --profile loadgen up locust
 
-# In HyperDX, compare:
-# - Processing time for successful vs error orders
-# - Error propagation through the trace
-# - Impact on overall system performance
+# In HyperDX, observe:
+
+# 1. Error rate over time
+orders.errors | rate(1m)
+
+# 2. Error breakdown by type
+orders.errors{error.type=*} | sum() by error.type
+
+# 3. Compare successful vs error processing times
+order.processing.duration{status="success"} | percentile(95)
+order.processing.duration{status="error"} | percentile(95)
+
+# 4. View error traces
+# - Search for "status:error" in HyperDX traces
+# - See full error propagation through services
+# - Compare error spans with successful request spans
+
+# 5. System impact
+# - Does error rate correlate with increased latency?
+# - How does queue depth change during error bursts?
+# - Monitor rabbitmq_queue_messages_ready during high error periods
 ```
 
 ## Stopping Load Tests

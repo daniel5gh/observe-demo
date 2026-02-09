@@ -19,8 +19,13 @@ class OrderUser(HttpUser):
         Creates a new order via POST /orders.
 
         Weight: 10 (most common operation)
+        Occasionally triggers errors to demonstrate error tracking:
+        - 90% normal products
+        - 5% "error" (triggers API error)
+        - 5% "worker error" (triggers worker processing error)
         """
-        products = [
+        # Normal products for successful orders
+        normal_products = [
             "Widget Pro",
             "Gadget Ultra",
             "ThingaMajig",
@@ -28,8 +33,23 @@ class OrderUser(HttpUser):
             "Whatsit Premium",
         ]
 
+        # Determine product: 90% normal, 5% error, 5% worker error
+        rand = random.random()
+        if rand < 0.90:
+            # 90% - Normal products
+            product = random.choice(normal_products)
+            expected_status = 201
+        elif rand < 0.95:
+            # 5% - Trigger API error
+            product = "error"
+            expected_status = 500  # API will throw exception
+        else:
+            # 5% - Trigger worker error (still creates order successfully)
+            product = "worker error"
+            expected_status = 201
+
         order = {
-            "product": random.choice(products),
+            "product": product,
             "quantity": random.randint(1, 10),
             "customerName": f"LoadTest-User-{random.randint(1000, 9999)}",
         }
@@ -40,7 +60,11 @@ class OrderUser(HttpUser):
             catch_response=True,
             name="POST /orders"
         ) as response:
-            if response.status_code == 201:
+            # For "error" product, we expect 500 and that's OK for our demo
+            if response.status_code == expected_status:
+                response.success()
+            elif product == "error" and response.status_code == 500:
+                # Mark as success since this is expected behavior for demo
                 response.success()
             else:
                 response.failure(f"Got status {response.status_code}")

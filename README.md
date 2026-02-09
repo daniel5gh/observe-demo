@@ -62,6 +62,8 @@ docker compose --profile loadgen up locust
 
 Access the Locust web UI at http://localhost:8089 to control the load test and view statistics.
 
+**Note:** The load generator automatically includes error injection (~10% of orders) using "error" and "worker error" products to demonstrate error tracking and distributed tracing of failures.
+
 See `loadgen/README.md` for detailed configuration options and examples.
 
 ### Observing Load Test Results

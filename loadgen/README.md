@@ -50,6 +50,10 @@ The load generator simulates realistic user behavior with weighted tasks:
    - `POST /orders`
    - Creates orders with random products and quantities
    - Most common operation
+   - **Error simulation:**
+     - 90% normal products (successful orders)
+     - 5% product "error" (triggers API error, demonstrates error tracing)
+     - 5% product "worker error" (triggers worker processing error, demonstrates async error tracking)
 
 2. **List Orders** (Weight: 3)
    - `GET /orders`
@@ -75,8 +79,32 @@ When running load tests, you can observe:
 2. **Queue processing metrics** showing worker performance under load
 3. **Processing time histograms** for order processing
 4. **System behavior** under various load patterns
+5. **Error rates and error tracing:**
+   - API errors (product "error") - visible in API service traces
+   - Worker errors (product "worker error") - visible in worker service traces
+   - Error counters: `orders.errors` metric in HyperDX
+   - Approximately 10% of orders will trigger errors for demo purposes
 
 Access HyperDX dashboard at http://localhost:8080 while the load test is running.
+
+### Error Tracking in HyperDX
+
+The load generator automatically triggers errors to demonstrate observability:
+
+- **View error rate:**
+  ```
+  rate(orders.errors[1m])
+  ```
+
+- **Error breakdown by type:**
+  ```
+  orders.errors{error.type=*} | sum() by error.type
+  ```
+
+- **Error traces:**
+  - Search for traces with `status:error` in HyperDX
+  - See full error propagation across services
+  - Compare error traces with successful traces
 
 ## Examples
 
