@@ -81,9 +81,9 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
 - **Purpose:** Message broker for async workflows
 - **Tech:** RabbitMQ (official Docker image with management plugin)
 - **Observability:**
-  - Publish/consume spans with trace context propagation across the message boundary
-  - Prometheus metrics exported on port 15692 (queue depth, message rates, consumer counts, etc.)
-  - Metrics scraped by OTEL Collector and forwarded to ClickStack for unified dashboard
+  - **Application-level tracing:** Publish/consume spans with trace context propagation across the message boundary
+  - **Infrastructure metrics:** Prometheus metrics exported on port 15692 (queue depth, message rates, consumer counts, etc.), scraped by OTEL Collector
+  - **Internal event tracing:** RabbitMQ events (connections, queues, consumers, etc.) converted to OTLP traces via rabbitmq-tracer service
 
 ### 6. ClickStack (Observability Backend)
 - **Image:** `clickhouse/clickstack-all-in-one:2.9.0`
@@ -103,17 +103,28 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
   - Forwards to ClickStack OTLP endpoint
 - **Why:** Enables RabbitMQ infrastructure metrics (queue depth, message rates, consumer counts) to appear alongside application metrics in HyperDX
 
-### 7. Locust Load Generator (Optional)
+### 7. RabbitMQ Event Tracer
+- **Image:** Python 3.11 (custom service)
+- **Purpose:** Converts RabbitMQ internal events to OpenTelemetry traces
+- **How it works:**
+  - Consumes from `amq.rabbitmq.event` exchange
+  - Captures connection, channel, queue, consumer, exchange, and binding events
+  - Converts each event to an OTLP span with rich attributes
+  - Exports to ClickStack for unified trace view
+- **Why:** Provides visibility into RabbitMQ internal operations (connections, consumer lifecycle, queue creation) alongside application traces
+
+### 8. Locust Load Generator (Optional)
 - **Purpose:** Generates configurable load to demonstrate observability under various traffic patterns
 - **Tech:** Locust (Python-based load testing framework)
 - **Observability:** Load metrics help visualize system behavior under stress, enabling analysis of latency distribution, queue depth, and processing times
 - **Config:**
-  - Optional service (start with `docker compose up locust`)
+  - Optional service (start with `docker compose --profile loadgen up`)
   - Configurable via environment variables:
     - `LOCUST_USERS` — number of concurrent users
     - `LOCUST_SPAWN_RATE` — users spawned per second
     - `LOCUST_HOST` — target host (defaults to .NET API)
   - Web UI available on port **8089** for manual control
+  - Automatic error injection (~10% of requests)
 - **Usage:** Useful for demonstrating how observability helps identify bottlenecks and performance issues under load
 
 ## Demo Domain: Order Processing
@@ -174,9 +185,14 @@ observe-demo/
 │   └── locustfile.py
 ├── otel-collector/        # OpenTelemetry Collector for RabbitMQ metrics
 │   └── config.yaml
+├── rabbitmq-tracer/       # RabbitMQ event tracer
+│   ├── Dockerfile
+│   ├── main.py
+│   └── requirements.txt
 ├── PRD.md
 ├── README.md
-└── RABBITMQ_METRICS.md
+├── RABBITMQ_METRICS.md
+└── RABBITMQ_TRACING.md
 ```
 
 ## Success Criteria

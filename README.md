@@ -116,9 +116,11 @@ docker compose up worker
 
 This allows you to simulate different processing patterns and observe their impact on system performance.
 
-## RabbitMQ Metrics
+## RabbitMQ Observability
 
-RabbitMQ infrastructure metrics are automatically collected and displayed in HyperDX alongside application metrics:
+### Metrics
+
+RabbitMQ infrastructure metrics are automatically collected and displayed in HyperDX:
 
 - **Queue depth** (`rabbitmq_queue_messages`) - Total messages in queue
 - **Ready messages** (`rabbitmq_queue_messages_ready`) - Messages waiting for delivery
@@ -126,13 +128,37 @@ RabbitMQ infrastructure metrics are automatically collected and displayed in Hyp
 - **Consumer count** (`rabbitmq_queue_consumers`) - Active consumers
 - **Publish rate** (`rabbitmq_channel_messages_published_total`) - Messages published over time
 
-This enables you to:
-1. Monitor queue backlog during load tests
-2. Correlate queue depth with processing time
-3. Detect consumer failures (consumer count drops to 0)
-4. Track message flow through the system
-
 See `RABBITMQ_METRICS.md` for complete metrics list and dashboard examples.
+
+### Traces
+
+RabbitMQ internal events are converted to OpenTelemetry traces (requires `rabbitmq_event_exchange` plugin, enabled automatically):
+
+- **Connection events** - Client connections/disconnections
+- **Channel events** - Channel creation/closure
+- **Queue events** - Queue declaration/deletion
+- **Consumer events** - Consumer start/stop
+- **Exchange & binding events** - Configuration changes
+
+**View in HyperDX:**
+```
+# All RabbitMQ events
+service.name:rabbitmq-events
+
+# Consumer lifecycle
+rabbitmq.consumer.queue:"order.processing"
+
+# Connection activity
+rabbitmq.event.type:connection.*
+```
+
+This enables you to:
+1. Debug connection issues and disconnections
+2. Track consumer lifecycle (when workers start/stop)
+3. Monitor queue creation and configuration
+4. Correlate infrastructure events with application behavior
+
+See `RABBITMQ_TRACING.md` for detailed event types and use cases.
 
 ## Services
 
@@ -140,9 +166,10 @@ See `RABBITMQ_METRICS.md` for complete metrics list and dashboard examples.
 - **api** — .NET 8 Minimal API with Dapper, Npgsql, RabbitMQ.Client 7.x
 - **worker** — Python FastAPI (/enrich endpoint) + aio-pika RabbitMQ consumer with processing time metrics
 - **postgres** — Order storage
-- **rabbitmq** — Message broker for order events with Prometheus metrics enabled
+- **rabbitmq** — Message broker for order events with Prometheus metrics and event tracing
 - **clickstack** — All-in-one observability backend (OTel Collector + ClickHouse + HyperDX)
 - **otel-collector** — Scrapes RabbitMQ Prometheus metrics and forwards to ClickStack
+- **rabbitmq-tracer** — Converts RabbitMQ internal events to OpenTelemetry traces
 - **locust** (optional) — Load testing tool to simulate user traffic and observe system behavior under load
 
 ## Teardown

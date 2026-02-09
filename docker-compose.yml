@@ -29,7 +29,7 @@ services:
       retries: 10
     command: >
       sh -c "
-        rabbitmq-plugins enable rabbitmq_prometheus &&
+        rabbitmq-plugins enable rabbitmq_prometheus rabbitmq_event_exchange &&
         rabbitmq-server
       "
 
@@ -51,6 +51,22 @@ services:
       - ./otel-collector/config.yaml:/etc/otel-collector-config.yaml:ro
     environment:
       OTEL_AUTHORIZATION: ${OTEL_AUTHORIZATION}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      clickstack:
+        condition: service_started
+
+  rabbitmq-tracer:
+    build: ./rabbitmq-tracer
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: demo
+      RABBITMQ_PASSWORD: demo
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://clickstack:4317"
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=${OTEL_AUTHORIZATION}"
+      OTEL_SERVICE_NAME: rabbitmq-events
+      LOG_LEVEL: ${RABBITMQ_TRACER_LOG_LEVEL:-INFO}
     depends_on:
       rabbitmq:
         condition: service_healthy
