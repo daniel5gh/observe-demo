@@ -80,7 +80,10 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
 ### 5. RabbitMQ
 - **Purpose:** Message broker for async workflows
 - **Tech:** RabbitMQ (official Docker image with management plugin)
-- **Observability:** Publish/consume spans with trace context propagation across the message boundary
+- **Observability:**
+  - Publish/consume spans with trace context propagation across the message boundary
+  - Prometheus metrics exported on port 15692 (queue depth, message rates, consumer counts, etc.)
+  - Metrics scraped by OTEL Collector and forwarded to ClickStack for unified dashboard
 
 ### 6. ClickStack (Observability Backend)
 - **Image:** `clickhouse/clickstack-all-in-one:2.9.0`
@@ -90,6 +93,15 @@ The observability stack is powered by **ClickStack** (ClickHouse + OpenTelemetry
   - ClickHouse for telemetry storage
   - HyperDX dashboard for exploring traces, metrics, and logs
 - **Config:** All application services point their OTLP exporter to `clickstack:4317`
+
+### 6b. OpenTelemetry Collector (Metrics Bridge)
+- **Image:** `otel/opentelemetry-collector-contrib:0.97.0`
+- **Purpose:** Scrapes RabbitMQ Prometheus metrics and forwards to ClickStack
+- **Config:**
+  - Scrapes RabbitMQ metrics every 15 seconds
+  - Adds `service.name=rabbitmq` resource attribute
+  - Forwards to ClickStack OTLP endpoint
+- **Why:** Enables RabbitMQ infrastructure metrics (queue depth, message rates, consumer counts) to appear alongside application metrics in HyperDX
 
 ### 7. Locust Load Generator (Optional)
 - **Purpose:** Generates configurable load to demonstrate observability under various traffic patterns
@@ -160,8 +172,11 @@ observe-demo/
 ├── loadgen/               # Locust load generator
 │   ├── Dockerfile
 │   └── locustfile.py
+├── otel-collector/        # OpenTelemetry Collector for RabbitMQ metrics
+│   └── config.yaml
 ├── PRD.md
-└── README.md
+├── README.md
+└── RABBITMQ_METRICS.md
 ```
 
 ## Success Criteria

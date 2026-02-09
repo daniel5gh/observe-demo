@@ -28,6 +28,7 @@ Wait for all services to become healthy (first build takes a few minutes).
 | .NET API            | http://localhost:5050         | REST API            |
 | HyperDX             | http://localhost:8080         | Traces, logs, metrics |
 | RabbitMQ Management | http://localhost:15672        | demo / demo         |
+| RabbitMQ Prometheus | http://localhost:15692/metrics | Raw Prometheus metrics |
 | Python Worker API   | http://localhost:8000/health  | Health check        |
 | Locust Load Gen     | http://localhost:8089         | Load testing UI (optional) |
 
@@ -91,6 +92,15 @@ The system exports several custom metrics for monitoring:
   - `order.product` - Product name
   - `status` - success or error
 
+- **RabbitMQ Metrics** (Infrastructure) - Automatically scraped from RabbitMQ Prometheus endpoint:
+  - `rabbitmq_queue_messages` - Messages in queue (gauge)
+  - `rabbitmq_queue_messages_ready` - Messages ready for delivery
+  - `rabbitmq_queue_messages_unacknowledged` - Messages delivered but not ack'd
+  - `rabbitmq_queue_consumers` - Number of consumers per queue
+  - `rabbitmq_channel_messages_published_total` - Total messages published
+  - `rabbitmq_channel_messages_confirmed_total` - Total messages confirmed
+  - Many more available at http://localhost:15692/metrics
+
 ### Configuring Worker Processing Time
 
 The worker simulates realistic processing with random delays. Configure via environment variables:
@@ -104,14 +114,33 @@ docker compose up worker
 
 This allows you to simulate different processing patterns and observe their impact on system performance.
 
+## RabbitMQ Metrics
+
+RabbitMQ infrastructure metrics are automatically collected and displayed in HyperDX alongside application metrics:
+
+- **Queue depth** (`rabbitmq_queue_messages`) - Total messages in queue
+- **Ready messages** (`rabbitmq_queue_messages_ready`) - Messages waiting for delivery
+- **Unacknowledged** (`rabbitmq_queue_messages_unacknowledged`) - Messages being processed
+- **Consumer count** (`rabbitmq_queue_consumers`) - Active consumers
+- **Publish rate** (`rabbitmq_channel_messages_published_total`) - Messages published over time
+
+This enables you to:
+1. Monitor queue backlog during load tests
+2. Correlate queue depth with processing time
+3. Detect consumer failures (consumer count drops to 0)
+4. Track message flow through the system
+
+See `RABBITMQ_METRICS.md` for complete metrics list and dashboard examples.
+
 ## Services
 
 - **frontend** — Vite + React + TypeScript with OTel browser SDK
 - **api** — .NET 8 Minimal API with Dapper, Npgsql, RabbitMQ.Client 7.x
 - **worker** — Python FastAPI (/enrich endpoint) + aio-pika RabbitMQ consumer with processing time metrics
 - **postgres** — Order storage
-- **rabbitmq** — Message broker for order events
+- **rabbitmq** — Message broker for order events with Prometheus metrics enabled
 - **clickstack** — All-in-one observability backend (OTel Collector + ClickHouse + HyperDX)
+- **otel-collector** — Scrapes RabbitMQ Prometheus metrics and forwards to ClickStack
 - **locust** (optional) — Load testing tool to simulate user traffic and observe system behavior under load
 
 ## Teardown

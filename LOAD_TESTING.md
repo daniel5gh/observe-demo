@@ -114,9 +114,14 @@ The load generator simulates three types of operations with weighted distributio
    - HTTP request duration across all services
    - Available in traces and metrics
 
-5. **Queue Depth** (via RabbitMQ)
-   - Monitor at http://localhost:15672
-   - Shows backlog under heavy load
+5. **RabbitMQ Infrastructure Metrics** (Auto-scraped)
+   - `rabbitmq_queue_messages` - Total messages in queue
+   - `rabbitmq_queue_messages_ready` - Messages ready for delivery
+   - `rabbitmq_queue_messages_unacknowledged` - Delivered but not ack'd
+   - `rabbitmq_queue_consumers` - Active consumers
+   - `rabbitmq_channel_messages_published_total` - Total published
+   - View in HyperDX alongside application metrics
+   - Also available at http://localhost:15672 (management UI)
 
 ### Analyzing Performance
 
@@ -169,6 +174,18 @@ order.processing.duration{status="error"} | count()
 
 # Request rate by endpoint
 http.server.request.duration{endpoint=*} | rate(1m)
+
+# RabbitMQ queue depth (messages waiting)
+rabbitmq_queue_messages_ready{queue="order.processing"} | last()
+
+# RabbitMQ message publish rate
+rabbitmq_channel_messages_published_total | rate(1m)
+
+# RabbitMQ consumer count
+rabbitmq_queue_consumers{queue="order.processing"} | last()
+
+# Unacknowledged messages (processing in progress)
+rabbitmq_queue_messages_unacknowledged{queue="order.processing"} | last()
 ```
 
 ## Example Workflows

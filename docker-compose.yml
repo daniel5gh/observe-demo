@@ -21,11 +21,17 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"  # Prometheus metrics
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+    command: >
+      sh -c "
+        rabbitmq-plugins enable rabbitmq_prometheus &&
+        rabbitmq-server
+      "
 
   clickstack:
     image: docker.io/clickhouse/clickstack-all-in-one:2.9.0
@@ -37,6 +43,19 @@ services:
       - clickstack-db:/data/db
       - clickstack-data:/var/lib/clickhouse
       - clickstack-logs:/var/log/clickhouse-server
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.97.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otel-collector-config.yaml:ro
+    environment:
+      OTEL_AUTHORIZATION: ${OTEL_AUTHORIZATION}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      clickstack:
+        condition: service_started
 
   api:
     build: ./api
