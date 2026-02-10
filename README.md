@@ -14,11 +14,34 @@ All services ──OTLP──▶ ClickStack (collector + ClickHouse + HyperDX)
 
 ## Quick Start
 
+1. Create a local environment file from the example:
+
+```bash
+cp .env.example .env
+```
+
+2. Start ClickStack (collector + ClickHouse + HyperDX) once to perform initial setup:
+
+```bash
+docker compose up clickstack
+```
+
+3. Open HyperDX (ClickStack) at http://localhost:8080, create the initial admin user, then go to *Team Settings* → *Ingestion API Keys* and create/copy an Ingestion API Key.
+
+4. Edit the newly created `.env` and set the Ingestion API Key value for both authorization variables:
+
+```
+OTEL_AUTHORIZATION=<your-ingestion-api-key>
+VITE_OTEL_AUTHORIZATION=<your-ingestion-api-key>
+```
+
+5. Start the rest of the services:
+
 ```bash
 docker compose up --build
 ```
 
-Wait for all services to become healthy (first build takes a few minutes).
+Wait for all services to become healthy (first build takes a few minutes). Note: running `docker compose up clickstack` only needs to be done once for the initial admin/key creation.
 
 ## URLs
 
